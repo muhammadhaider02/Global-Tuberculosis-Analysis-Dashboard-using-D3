@@ -35,19 +35,22 @@ The dashboard includes the following five visualizations:
 4. Click on regions within the visualizations or the legend for specific region analysis.
 5. Use the "+" icon in the top right corner to expand a visualization for a detailed view. Use the "x" icon in the bottom right corner to zoom back out.
 
-Technologies Used
+## Technologies Used
 - HTML, CSS, JavaScript: For creating and styling the dashboard.
 - D3.js: For rendering interactive and dynamic visualizations.
 - Live Server: To host the project locally.
 
-Known Issues
+## Known Issues
 - Ensure the live server is running to interact with the dashboard.
 - Larger datasets may take longer to load on slower machines.
 
-Future Enhancements
+## Future Enhancements
 - Add support for additional filters (e.g., gender or age group).
 - Include predictive analytics for Tuberculosis trends beyond 2013.
 - Export functionality for filtered data.
+
+## Acknowledgements
+Special thanks to [HasnainRaza](https://github.com/HasnainRzza) for his contributions to the project. His expertise and support were invaluable in helping to shape the direction and functionality of the analysis.
 
 Contact
 If you encounter any issues or have suggestions for improvement, feel free to reach out via email at muhammadhaiderakbar@gmail.com or create an issue in the project repository.
