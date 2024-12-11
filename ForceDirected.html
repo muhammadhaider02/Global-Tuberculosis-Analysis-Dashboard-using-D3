@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Force-Directed Graph</title>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      background-color: #f9f9f9;
+      box-sizing: border-box;
+      overflow: hidden;
+    }
+
+    h1 {
+      font-family: 'Trebuchet MS', sans-serif;
+      font-size: 2em;
+      font-weight: bold;
+      color: #0062d3;
+      text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1);
+      letter-spacing: 1px;
+      margin: 0;
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      z-index: 1000;
+    }
+
+    #controls {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      z-index: 100;
+    }
+
+    .region-buttons {
+      position: fixed;
+      top: 10px;
+      right: 10px;
+      display: flex;
+      gap: 10px;
+      z-index: 100;
+    }
+
+    .region-button {
+      padding: 8px 15px;
+      border: none;
+      border-radius: 5px;
+      font-size: 14px;
+      cursor: pointer;
+      color: #fff;
+      transition: background-color 0.3s ease, color 0.3s ease;
+    }
+
+    .region-button[data-region="AMR"] {
+      background-color: #1f77b4;
+    }
+
+    .region-button[data-region="EUR"] {
+      background-color: #ff7f0e;
+    }
+
+    .region-button[data-region="EMR"] {
+      background-color: #2ca02c;
+    }
+
+    .region-button[data-region="AFR"] {
+      background-color: #d62728;
+    }
+
+    .region-button[data-region="SEA"] {
+      background-color: #9467bd;
+    }
+
+    .region-button[data-region="WPR"] {
+      background-color: #8c564b;
+    }
+
+    .region-button.active {
+      border: 3px solid #000000;
+    }
+
+    .region-button:hover {
+      background-color: #ddd;
+      color: #000;
+    }
+
+    #year-select-container {
+      position: fixed;
+      top: 60px;
+      right: 10px;
+      z-index: 100;
+      background: rgba(255, 255, 255, 0.9);
+      padding: 10px;
+      border-radius: 8px;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
+    }
+
+    #year-select {
+      padding: 5px;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      font-size: 14px;
+      background-color: #f9f9f9;
+      cursor: pointer;
+      transition: background-color 0.3s ease, border-color 0.3s ease;
+    }
+
+    #year-select:hover {
+      background-color: #f0f0f0;
+      border-color: #ccc;
+    }
+
+    #reset-controls {
+      position: fixed;
+      top: 120px;
+      right: 10px;
+      z-index: 100;
+    }
+
+    #reset-zoom {
+      width: 175px;
+      padding: 8px 15px;
+      font-size: 14px;
+      border: none;
+      border-radius: 5px;
+      background-color: #4CAF50;
+      color: white;
+      cursor: pointer;
+      transition: background-color 0.3s ease, box-shadow 0.3s ease;
+      text-align: center;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      font-weight: bold;
+    }
+
+    #reset-zoom:hover {
+      background-color: #388E3C;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+    }
+
+    #reset-zoom:active {
+      transform: scale(0.98);
+    }
+
+    #legend {
+      display: flex;
+      flex-wrap: nowrap;
+      gap: 15px;
+      justify-content: center;
+      align-items: center;
+      max-width: 100%;
+      padding: 0;
+      background: none;
+      border-radius: 0;
+      box-shadow: none;
+      position: fixed;
+      bottom: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 100;
+      overflow-x: auto;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 14px;
+    }
+
+    .legend-color {
+      width: 20px;
+      height: 20px;
+      border-radius: 3px;
+    }
+
+    .tooltip {
+      position: absolute;
+      background-color: rgba(0, 0, 0, 0.8);
+      color: white;
+      padding: 8px 10px;
+      border-radius: 4px;
+      font-size: 12px;
+      pointer-events: none;
+      visibility: hidden;
+    }
+
+    #chart-container {
+      width: 100%;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    #chart {
+      width: 100%;
+      height: 100%;
+    }
+
+    svg {
+      width: 100%;
+      height: 100%;
+    }
+
+    circle {
+      stroke: #000;
+      stroke-width: 1.5px;
+    }
+
+    text {
+      font-size: 12px;
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+  <h1>From Illness to Recovery: A Global Overview</h1>
+  <div id="controls">
+    <div id="year-select-container">
+      <label for="year-select">Select Year:</label>
+      <select id="year-select"></select>
+    </div>
+
+    <div id="reset-controls">
+      <button id="reset-zoom">Reset Zoom</button>
+    </div>
+  </div>
+
+  <div class="region-buttons" id="region-buttons">
+    <button class="region-button" data-region="AMR">AMR</button>
+    <button class="region-button" data-region="EUR">EUR</button>
+    <button class="region-button" data-region="EMR">EMR</button>
+    <button class="region-button" data-region="AFR">AFR</button>
+    <button class="region-button" data-region="SEA">SEA</button>
+    <button class="region-button" data-region="WPR">WPR</button>
+  </div>
+
+  <div id="chart-container">
+    <div id="chart"></div>
+  </div>
+
+  <div id="legend"></div>
+  <div class="tooltip" id="tooltip"></div>
+
+  <script>
+
+    window.addEventListener("message", (event) => {
+    const data = event.data;
+
+    if (data.type === "filter") {
+        if (data.filterType === "region") {
+            const regionButton = document.querySelector(`.region-button[data-region="${data.value}"]`);
+            if (regionButton) regionButton.click();
+        } else if (data.filterType === "year") {
+            const yearDropdown = document.querySelector("#year-select");
+            if (yearDropdown) yearDropdown.value = data.value;
+            yearDropdown.dispatchEvent(new Event("change"));
+        } else if (data.filterType === "metric") {
+            const metricDropdown = document.querySelector("#metrics");
+            if (metricDropdown) metricDropdown.value = data.value;
+            metricDropdown.dispatchEvent(new Event("change"));
+        }
+    }
+});
+
+       if (window !== window.top) {
+    const heading = document.querySelector('h1');
+    if (heading) heading.style.display = 'none';
+  }
+
+    d3.json("force_directed.json").then(data => {
+      const width = document.getElementById('chart').clientWidth;
+      const height = document.getElementById('chart').clientHeight;
+      const tooltip = d3.select("#tooltip");
+
+      const regionColors = {
+        AMR: { color: "#1f77b4", fullName: "Americas" },
+        EUR: { color: "#ff7f0e", fullName: "Europe" },
+        EMR: { color: "#2ca02c", fullName: "Eastern Mediterranean" },
+        AFR: { color: "#d62728", fullName: "Africa" },
+        SEA: { color: "#9467bd", fullName: "Southeast Asia" },
+        WPR: { color: "#8c564b", fullName: "Western Pacific" }
+      };
+
+      const radiusScale = d3.scaleLinear()
+        .domain([0, 100])
+        .range([5, 30]);
+
+      const years = [...new Set(data.nodes.map(d => d.year))];
+      const yearSelect = d3.select("#year-select");
+
+      years.forEach(year => {
+        yearSelect.append("option")
+          .attr("value", year)
+          .text(year)
+          .property("selected", year === 1990);
+      });
+
+      const legend = d3.select("#legend");
+      legend.selectAll("*").remove();
+      Object.entries(regionColors).forEach(([abbr, { color, fullName }]) => {
+        const item = legend.append("div")
+          .attr("class", "legend-item");
+
+        item.append("div")
+          .attr("class", "legend-color")
+          .style("background-color", color);
+
+        item.append("span").html(fullName.replace(/ /g, "&nbsp;"));
+
+        item.on("click", function () {
+          if (selectedRegion === abbr) {
+            selectedRegion = null;
+            item.classed("active", false).style("opacity", 1);
+          } else {
+            selectedRegion = abbr;
+            legend.selectAll(".legend-item").classed("active", false).style("opacity", 1);
+            item.classed("active", true).style("opacity", 0.7);
+          }
+          renderGraph(selectedYear, selectedRegion);
+        });
+      });
+
+      let selectedYear = 1990;
+      let selectedRegion = "SEA";
+      d3.select(`.region-button[data-region="${selectedRegion}"]`).classed("active", true);
+
+      let highlightedNode = null;
+
+      const svg = d3.select("#chart").append("svg")
+        .attr("width", width)
+        .attr("height", height);
+
+      const container = svg.append("g");
+
+      const zoom = d3.zoom()
+        .scaleExtent([0.8, 2.5])
+        .on("zoom", (event) => {
+          container.attr("transform", event.transform);
+        });
+
+      svg.call(zoom);
+
+      document.getElementById("reset-zoom").addEventListener("click", () => {
+        svg.transition().duration(500).call(zoom.transform, d3.zoomIdentity);
+      });
+
+      function truncateText(text, maxRadius) {
+        const maxChars = Math.floor(maxRadius / 4);
+        return text.length > maxChars ? text.slice(0, maxChars - 2) + "…" : text;
+      }
+
+      function renderGraph(year, region) {
+        const filteredNodes = data.nodes.filter(d => 
+        d.year === year && 
+        (selectedRegion === null || d.region === selectedRegion)
+      );
+
+        const nodeMap = new Map(filteredNodes.map(node => [node.id, node]));
+        const filteredLinks = data.links
+          .filter(link => nodeMap.has(link.source) && nodeMap.has(link.target))
+          .map(link => ({
+            ...link,
+            source: nodeMap.get(link.source),
+            target: nodeMap.get(link.target)
+          }));
+
+        container.selectAll(".link").remove();
+        container.selectAll(".node").remove();
+        container.selectAll(".label").remove();
+
+        const simulation = d3.forceSimulation(filteredNodes)
+          .force("link", d3.forceLink(filteredLinks)
+            .id(d => d.id)
+            .distance(120))
+          .force("charge", d3.forceManyBody().strength(-50))
+          .force("center", d3.forceCenter(width / 2, height / 2))
+          .force("collision", d3.forceCollide(50));
+
+        const link = container.append("g")
+          .selectAll(".link")
+          .data(filteredLinks)
+          .join("line")
+          .attr("class", "link")
+          .attr("stroke", "#999")
+          .attr("stroke-opacity", 0.6)
+          .attr("stroke-width", d => Math.sqrt(d.value) / 4);
+
+        const node = container.append("g")
+          .selectAll(".node")
+          .data(filteredNodes)
+          .join("circle")
+          .attr("class", "node")
+          .attr("r", d => radiusScale(d.recovery_rate || 0))
+          .attr("fill", d => regionColors[d.region]?.color || "#ccc")
+          .call(drag(simulation))
+          .on("mouseover", (event, d) => {
+            tooltip.style("visibility", "visible")
+              .style("top", `${event.pageY}px`)
+              .style("left", `${event.pageX}px`)
+              .html(`<strong>${d.id}</strong><br>Region: ${regionColors[d.region]?.fullName}<br>Recovery Rate: ${d.recovery_rate}%`);
+          })
+          .on("mousemove", event => {
+            tooltip.style("top", `${event.pageY + 10}px`)
+              .style("left", `${event.pageX + 10}px`);
+          })
+          .on("mouseout", () => {
+            tooltip.style("visibility", "hidden");
+          })
+          .on("click", function (event, d) {
+            if (highlightedNode === d) {
+              highlightedNode = null;
+              resetHighlight(node, link);
+            } else {
+              highlightedNode = d;
+              applyHighlight(node, link, d);
+            }
+          });
+
+        const labels = container.append("g")
+          .selectAll(".label")
+          .data(filteredNodes)
+          .join("text")
+          .attr("class", "label")
+          .attr("text-anchor", "middle")
+          .attr("dy", "0.35em")
+          .text(d => truncateText(d.id, radiusScale(d.recovery_rate || 0)));
+
+        simulation.on("tick", () => {
+          link
+            .attr("x1", d => d.source.x)
+            .attr("y1", d => d.source.y)
+            .attr("x2", d => d.target.x)
+            .attr("y2", d => d.target.y);
+
+          node
+            .attr("cx", d => d.x)
+            .attr("cy", d => d.y);
+
+          labels
+            .attr("x", d => d.x)
+            .attr("y", d => d.y);
+        });
+
+        function applyHighlight(nodes, links, targetNode) {
+          nodes.attr("opacity", node => (node === targetNode || isLinked(node, targetNode) ? 1 : 0.1));
+          links.attr("opacity", link => (link.source === targetNode || link.target === targetNode ? 1 : 0.1));
+        }
+
+        function resetHighlight(nodes, links) {
+          nodes.attr("opacity", 1);
+          links.attr("opacity", 0.6);
+        }
+
+        function isLinked(node, targetNode) {
+          return filteredLinks.some(link => (link.source === node && link.target === targetNode) ||
+                                            (link.target === node && link.source === targetNode));
+        }
+
+        function drag(simulation) {
+          function dragstarted(event, d) {
+            if (!event.active) simulation.alphaTarget(0.3).restart();
+            d.fx = d.x;
+            d.fy = d.y;
+          }
+
+          function dragged(event, d) {
+            d.fx = event.x;
+            d.fy = event.y;
+          }
+
+          function dragended(event, d) {
+            if (!event.active) simulation.alphaTarget(0);
+            d.fx = null;
+            d.fy = null;
+          }
+
+          return d3.drag()
+            .on("start", dragstarted)
+            .on("drag", dragged)
+            .on("end", dragended);
+        }
+      }
+
+      yearSelect.on("change", function () {
+        selectedYear = +this.value;
+        renderGraph(selectedYear, selectedRegion);
+      });
+
+      d3.selectAll(".region-button").on("click", function () {
+        selectedRegion = d3.select(this).attr("data-region");
+        d3.selectAll(".region-button").classed("active", false);
+        d3.select(this).classed("active", true);
+        renderGraph(selectedYear, selectedRegion);
+      });
+
+      renderGraph(selectedYear, selectedRegion);
+    }).catch(err => console.error("Error loading JSON:", err));
+  </script>
+</body>
+</html>

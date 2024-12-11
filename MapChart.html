@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Map Chart</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+        }
+
+        h1 {
+            font-family: 'Trebuchet MS', sans-serif;
+            font-size: 2em;
+            font-weight: bold;
+            color: #0062d3;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1);
+            letter-spacing: 1px;
+            margin: 0;
+            position: absolute;
+            top: 4px;
+            left: 10px;
+            z-index: 1000;
+        }
+
+        #controls {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 10;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .region-button {
+            padding: 8px 15px;
+            border: none;
+            border-radius: 5px;
+            font-size: 14px;
+            cursor: pointer;
+            background-color: #f0f0f0;
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+
+        .region-button.active {
+            background-color: #4CAF50;
+            color: white;
+        }
+
+        .region-button:hover {
+            background-color: #ddd;
+        }
+
+        #metric-toggle {
+            position: absolute;
+            top: 60px;
+            right: 10px;
+            z-index: 10;
+            background: rgba(255, 255, 255, 0.8);
+            padding: 10px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
+        }
+
+        #metrics {
+            padding: 5px;
+            font-size: 14px;
+        }
+
+        #year-toggle {
+            position: absolute;
+            top: 120px;
+            right: 10px;
+            z-index: 10;
+            background: rgba(255, 255, 255, 0.8);
+            padding: 10px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
+        }
+
+        #years {
+            padding: 5px;
+            font-size: 14px;
+        }
+
+        #legend {
+            display: flex;
+            flex-wrap: nowrap;
+            gap: 15px;
+            justify-content: center;
+            align-items: center;
+            max-width: 100%;
+            padding: 0;
+            background: none;
+            border-radius: 0;
+            box-shadow: none;
+            position: fixed;
+            bottom: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 100;
+            overflow-x: auto;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 14px;
+        }
+
+        .legend-color {
+            width: 20px;
+            height: 20px;
+            border-radius: 3px;
+        }
+
+        .tooltip {
+            position: absolute;
+            background-color: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 8px;
+            border-radius: 5px;
+            font-size: 12px;
+            pointer-events: none;
+            visibility: hidden;
+        }
+
+        #reset-controls {
+            position: fixed;
+            top: 180px;
+            right: 10px;
+            z-index: 100;
+        }
+
+        #resetZoom {
+            width: 175px;
+            padding: 8px 15px;
+            font-size: 14px;
+            border: none;
+            border-radius: 5px;
+            background-color: #4CAF50;
+            color: white;
+            cursor: pointer;
+            transition: background-color 0.3s ease, box-shadow 0.3s ease;
+            text-align: center;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        #resetZoom:hover {
+            background-color: #388E3C;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        }
+
+        #resetZoom:active {
+            transform: scale(0.98);
+        }
+
+        #resetZoom {
+            font-weight: bold;
+        }
+
+    </style>
+</head>
+
+<body>
+    <h1>Health Across the Globe: A Regional Perspective</h1>
+    <div id="controls">
+        <button class="region-button" data-region="AMR">AMR</button>
+        <button class="region-button" data-region="EUR">EUR</button>
+        <button class="region-button" data-region="EMR">EMR</button>
+        <button class="region-button" data-region="AFR">AFR</button>
+        <button class="region-button" data-region="SEA">SEA</button>
+        <button class="region-button" data-region="WPR">WPR</button>
+    </div>
+    <div id="metric-toggle">
+        <label for="metrics">Select Metric:</label>
+        <select id="metrics">
+            <option value="avgTotalCases">Total Cases</option>
+            <option value="avgHospitalsPerCapita">Clinics Per Capita</option>
+        </select>
+    </div>
+    <div id="year-toggle">
+        <label for="years">Select Year:</label>
+        <select id="years"></select>
+    </div>
+    <div id="reset-controls">
+        <button id="resetZoom">Reset Zoom</button>
+    </div>    
+    <div id="map"></div>
+    <div id="legend"></div>
+    <div class="tooltip" id="tooltip"></div>
+
+    <script>
+
+    window.addEventListener("message", (event) => {
+    const data = event.data;
+
+    if (data.type === "filter") {
+        if (data.filterType === "region") {
+            const regionButton = document.querySelector(`.region-button[data-region="${data.value}"]`);
+            if (regionButton) regionButton.click();
+        } else if (data.filterType === "year") {
+            const yearDropdown = document.querySelector("#years");
+            if (yearDropdown) yearDropdown.value = data.value;
+            yearDropdown.dispatchEvent(new Event("change"));
+        } else if (data.filterType === "metric") {
+            const metricDropdown = document.querySelector("#metrics");
+            if (metricDropdown) metricDropdown.value = data.value;
+            metricDropdown.dispatchEvent(new Event("change"));
+        }
+    }
+});
+
+        const width = window.innerWidth + 200;
+        const height = window.innerHeight;
+
+        const zoom = d3.zoom()
+            .scaleExtent([1, 10])
+            .on("zoom", (event) => {
+                svg.attr("transform", event.transform);
+            });
+
+        const svg = d3.select("#map")
+            .append("svg")
+            .attr("width", width)
+            .attr("height", height)
+            .call(zoom)
+            .append("g");
+
+        d3.select("#resetZoom").on("click", () => {
+            d3.select("#map svg")
+                .transition()
+                .duration(750)
+                .call(zoom.transform, d3.zoomIdentity);
+        });
+
+        const projection = d3.geoNaturalEarth1()
+            .scale(200)
+            .translate([width / 2.5, height / 2]);
+
+        const path = d3.geoPath().projection(projection);
+        const tooltip = d3.select("#tooltip");
+
+        let activeRegions = [];
+        let activeRange = null;
+        
+        Promise.all([
+            d3.json("https://raw.githubusercontent.com/holtzy/D3-graph-gallery/master/DATA/world.geojson"),
+            d3.json("map_chart.json")
+        ]).then(([geoData, mapData]) => {
+            const dataByCountryYear = {};
+
+            mapData.forEach(d => {
+                if (!dataByCountryYear[d.country]) {
+                    dataByCountryYear[d.country] = {};
+                }
+                dataByCountryYear[d.country][d.year] = {
+                    totalCases: d.total_cases,
+                    hospitalsPerCapita: d.hospitals_per_capita,
+                    region: d.region
+                };
+            });
+
+            const colorScaleCases = d3.scaleSequential()
+                .domain([0, 100000])
+                .interpolator(d3.interpolateReds);
+
+            const colorScaleHospitals = d3.scaleSequential()
+                .domain([3, 6])
+                .interpolator(d3.interpolateBlues);
+
+            const yearDropdown = d3.select("#years");
+            for (let year = 1990; year <= 2013; year++) {
+                yearDropdown.append("option").attr("value", year).text(year);
+            }
+
+            let currentYear = "1990"; 
+            let currentMetric = "avgTotalCases";
+            updateMap(currentYear, currentMetric);
+
+            yearDropdown.on("change", function () {
+                currentYear = d3.select(this).property("value");
+                updateMap(currentYear, currentMetric);
+            });
+
+            d3.select("#metrics").on("change", function () {
+                currentMetric = d3.select(this).property("value");
+                updateMap(currentYear, currentMetric);
+            });
+
+            function updateMap(selectedYear, selectedMetric) {
+                svg.selectAll("path")
+                    .data(geoData.features)
+                    .join("path")
+                    .attr("d", path)
+                    .attr("fill", d => {
+                        const countryName = d.properties.name;
+                        const data = dataByCountryYear[countryName];
+                        const yearData = data ? data[selectedYear] : null;
+
+                        const value = selectedMetric === "avgTotalCases" ? yearData?.totalCases : yearData?.hospitalsPerCapita;
+                        return value ? (selectedMetric === "avgTotalCases" ? colorScaleCases(value) : colorScaleHospitals(value)) : "#ccc";
+                    })
+                    .attr("stroke", "#333")
+                    .attr("stroke-width", 0.5)
+                    .attr("opacity", d => {
+                        const countryName = d.properties.name;
+                        const data = dataByCountryYear[countryName];
+                        const region = data ? Object.values(data)[0]?.region : null;
+
+                        return activeRegions.length === 0 || activeRegions.includes(region) ? 1 : 0.3;
+                    })
+                    .on("mouseover", (event, d) => {
+                        const countryName = d.properties.name;
+                        const data = dataByCountryYear[countryName];
+                        const yearData = data ? data[currentYear] : null;
+                        const formatValue = d3.format(",.0f");
+                        
+                        if (yearData) {
+                            tooltip.style("visibility", "visible").html(`
+                                <strong>${countryName}</strong><br>
+                                Region: ${yearData.region}<br>
+                                Year: ${currentYear}<br>
+                                ${currentMetric === "avgTotalCases" ?
+                                `Total Cases: ${formatValue(yearData.totalCases)}` :
+                                `Clinics per Capita: ${formatValue(yearData.hospitalsPerCapita)}`
+                            }
+                            `);
+                        } else {
+                            tooltip.style("visibility", "visible").html(`
+                                <strong>${countryName}</strong><br>
+                                Region: Unknown<br>
+                                Year: ${currentYear}<br>
+                                No data available for this year.
+                            `);
+                        }
+                    })
+                    .on("mousemove", event => {
+                        tooltip
+                            .style("top", (event.pageY - 20) + "px")
+                            .style("left", (event.pageX + 10) + "px");
+                    })
+                    .on("mouseout", () => tooltip.style("visibility", "hidden"))
+                    .on("click", function (event, d) {
+                        const isSelected = d3.select(this).classed("selected");
+
+                        if (isSelected) {
+                            svg.selectAll("path").classed("selected", false).attr("opacity", 1);
+                        } else {
+                            svg.selectAll("path").classed("selected", false).attr("opacity", 0.3);
+                            d3.select(this).classed("selected", true).attr("opacity", 1);
+                        }
+                    });
+            }
+
+            d3.selectAll(".region-button").on("click", function () {
+                const region = d3.select(this).attr("data-region");
+
+                if (activeRegions.includes(region)) {
+                    activeRegions = activeRegions.filter(r => r !== region);
+                    d3.select(this)
+                        .classed("active", false);
+                } else {
+                    activeRegions.push(region);
+                    d3.select(this)
+                        .classed("active", true);
+                }
+
+                svg.selectAll("path").transition()
+                    .duration(500)
+                    .attr("opacity", d => {
+                        const countryName = d.properties.name;
+                        const data = dataByCountryYear[countryName];
+                        const region = data ? Object.values(data)[0]?.region : null;
+                        return activeRegions.length === 0 || activeRegions.includes(region) ? 1 : 0.3;
+                    });
+            });
+
+            const legend = d3.select("#legend");
+            const updateLegend = (metric) => {
+                legend.selectAll("*").remove();
+
+                const ranges = metric === "avgTotalCases" ? [0, 25000, 50000, 75000, 100000] : [3, 4, 5, 6];
+                const colorScale = metric === "avgTotalCases" ? colorScaleCases : colorScaleHospitals;
+
+                const countries = svg.selectAll("path")
+                    .data(geoData.features)
+                    .join("path")
+                    .attr("d", path);
+
+                ranges.forEach((range, i) => {
+                    const nextRange = ranges[i + 1];
+                    legend.append("div")
+                        .attr("class", "legend-item")
+                        .html(`
+                            <span class="legend-color" style="background:${colorScale(range)};"></span>
+                            ${nextRange ? `${range} - ${nextRange}` : `${range}+`}
+                        `)
+                        .on("click", function () {
+                            if (activeRange === range) {
+                                activeRange = null;
+                                countries.transition()
+                                    .duration(500)
+                                    .attr("opacity", 1);
+                            } else {
+                                activeRange = range;
+                                countries.transition()
+                                    .duration(500)
+                                    .attr("opacity", d => {
+                                        const countryName = d.properties.name;
+                                        const data = dataByCountryYear[countryName];
+                                        const value = currentYear === "all"
+                                            ? Object.values(data || {}).reduce((sum, val) => sum + val[currentMetric === "avgTotalCases" ? "totalCases" : "hospitalsPerCapita"], 0) / Object.values(data || {}).length
+                                            : data?.[currentYear]?.[currentMetric === "avgTotalCases" ? "totalCases" : "hospitalsPerCapita"];
+                                        return value >= range && (!nextRange || value < nextRange) ? 1 : 0.3;
+                                    });
+                            }
+
+                            d3.selectAll(".legend-item").classed("active", false);
+                            d3.select(this).classed("active", activeRange !== null);
+                        });
+                });
+            };
+
+            updateLegend("avgTotalCases");
+
+            d3.select("#metrics").on("change", function () {
+                currentMetric = d3.select(this).property("value");
+                updateMap(currentYear, currentMetric);
+                updateLegend(currentMetric);
+            });
+        }).catch(err => console.error(err));
+    </script>
+</body>
+</html>
