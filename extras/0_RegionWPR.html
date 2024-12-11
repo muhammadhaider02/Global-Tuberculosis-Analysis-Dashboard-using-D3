@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sunburst</title>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      background-color: #f9f9f9;
+      box-sizing: border-box;
+      overflow: hidden;
+    }
+
+    h1 {
+      font-family: 'Trebuchet MS', sans-serif;
+      font-size: 2em;
+      font-weight: bold;
+      color: #0062d3;
+      text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1);
+      letter-spacing: 1px;
+      margin: 0;
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      z-index: 1000;
+    }
+
+    #controls {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .region-buttons {
+      position: fixed;
+      top: 10px;
+      right: 10px;
+      display: flex;
+      gap: 10px;
+      z-index: 100;
+    }
+
+    .region-button {
+      padding: 8px 15px;
+      border: none;
+      border-radius: 5px;
+      font-size: 14px;
+      cursor: pointer;
+      background-color: #f0f0f0;
+      transition: background-color 0.3s ease, color 0.3s ease;
+    }
+
+    .region-button.active {
+      border: 3px solid #000000;
+    }
+
+    .region-button:hover {
+      background-color: #ddd;
+    }
+
+    #region-buttons {
+        display: none;
+    }
+
+    select {
+      padding: 5px;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      font-size: 14px;
+    }
+
+    #chart-container {
+      width: 100%;
+      height: auto;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin-top: 25px;
+    }
+
+    #chart svg {
+      width: auto;
+      max-width: 85%;
+      height: auto;
+      max-height: 600px;
+    }
+
+    svg {
+      display: block;
+      margin: auto;
+    }
+
+    text {
+      pointer-events: none;
+    }
+
+    path:hover {
+      stroke-width: 3px;
+      stroke: black;
+      opacity: 0.8;
+    }
+
+    #legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 15px;
+      margin-top: 27px;
+      justify-content: center;
+      align-items: center;
+      max-width: 90%;
+      padding: 10px;
+      box-sizing: border-box;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 14px;
+    }
+
+    .legend-color {
+      width: 20px;
+      height: 20px;
+      border-radius: 3px;
+    }
+
+    .tooltip {
+      position: absolute;
+      background-color: rgba(0, 0, 0, 0.8);
+      color: white;
+      padding: 8px 10px;
+      border-radius: 4px;
+      font-size: 12px;
+      pointer-events: none;
+      visibility: hidden;
+    }
+
+    #year-select-container {
+      position: fixed;
+      top: 60px;
+      right: 10px;
+      z-index: 100;
+      background: rgba(255, 255, 255, 0.9);
+      padding: 10px;
+      border-radius: 8px;
+      box-shadow: 0 0 10px rgba(0, 0, 0, 0.2);
+    }
+
+    #year-select {
+      padding: 5px;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      font-size: 14px;
+      background-color: #f9f9f9;
+      cursor: pointer;
+      transition: background-color 0.3s ease, border-color 0.3s ease;
+    }
+
+    #year-select:hover {
+      background-color: #f0f0f0;
+      border-color: #ccc;
+    }
+
+    #year-select-container {
+        display: none;
+    }
+
+    #resetZoom {
+        position: absolute;
+        top: 406px;
+        left: 594px;
+        background: linear-gradient(135deg, #2b5876, #4e4376);
+        color: white;
+        font-size: 1.2rem;
+        font-weight: bold;
+        width: 30px;
+        height: 30px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        transition: background-color 0.3s ease, transform 0.3s ease;
+    }
+
+    #resetZoom:hover {
+        background: linear-gradient(135deg, #1a2a3a, #3b3a5a);
+        transform: scale(1.1);
+    }
+
+  </style>
+
+</head>
+<body>
+  <h1 class="sunburst-heading">The Global Burden of Tuberculosis: Total Cases</h1>
+  <div id="controls">
+    <div id="year-select-container">
+      <label for="year-select">Select Year:</label>
+      <select id="year-select"></select>
+    </div>
+    <div id="reset-controls">
+        <button id="resetZoom">x</button>
+    </div>    
+    <div class="region-buttons" id="region-buttons"></div>
+  </div>
+  <div id="chart-container">
+    <div id="chart"></div>
+    <div id="legend"></div>
+  </div>
+  <div class="tooltip" id="tooltip"></div>
+  <script>
+    window.addEventListener("message", (event) => {
+  const data = event.data;
+
+  if (data.type === "filter") {
+    if (data.filterType === "region") {
+      const regionButtonsContainer = document.querySelector("#region-buttons");
+
+      let targetButton = Array.from(regionButtonsContainer.querySelectorAll("button")).find(
+  (button) => button.textContent.trim() === "EUR"
+);
+
+
+console.log(targetButton);
+if (targetButton) {
+  targetButton.click();
+} else {
+  console.error("Target button not found in #region-buttons");
+}
+    } else if (data.filterType === "year") {
+      const yearDropdown = document.querySelector("#year-select");
+      if (yearDropdown) yearDropdown.value = data.value;
+      yearDropdown.dispatchEvent(new Event("change"));
+    } else if (data.filterType === "metric") {
+      const metricDropdown = document.querySelector("#metrics");
+      if (metricDropdown) metricDropdown.value = data.value;
+      metricDropdown.dispatchEvent(new Event("change"));
+    }
+  }
+});
+
+
+      if (window !== window.top) {
+    const heading = document.querySelector('h1');
+    if (heading) heading.style.display = 'none';
+  }
+
+    d3.json("sun_burst.json").then(data => {
+      const sizeMultiplier = 1.17;
+      const width = Math.min(window.innerWidth, window.innerHeight) * 0.8;
+      const radius = (width / 2) * sizeMultiplier;
+
+      const regionColors = {
+        AMR: { color: "#1f77b4", fullName: "Americas" },
+        EUR: { color: "#ff7f0e", fullName: "Europe" },
+        EMR: { color: "#2ca02c", fullName: "Eastern Mediterranean" },
+        AFR: { color: "#d62728", fullName: "Africa" },
+        SEA: { color: "#9467bd", fullName: "Southeast Asia" },
+        WPR: { color: "#8c564b", fullName: "Western Pacific" }
+      };
+
+      const tooltip = d3.select("#tooltip");
+
+      const partition = data => {
+        const root = d3.hierarchy(data)
+          .sum(d => d.value || 0)
+          .sort((a, b) => b.value - a.value);
+        return d3.partition().size([2 * Math.PI, 1])(root);
+      };
+
+      const arc = d3.arc()
+        .startAngle(d => d.x0)
+        .endAngle(d => d.x1)
+        .innerRadius(d => d.y0 * radius)
+        .outerRadius(d => d.y1 * radius);
+
+      const zoom = d3.zoom()
+        .scaleExtent([1, 10])
+        .on("zoom", (event) => {
+        svg.attr("transform", event.transform);
+      });
+
+      const svg = d3.select("#chart")
+        .append("svg")
+        .attr("viewBox", [-radius, -radius, radius * 2, radius * 2])
+        .attr("width", radius * 2)
+        .attr("height", radius * 2)
+        .style("font", "12px sans-serif")
+        .call(zoom)
+        .append("g");
+
+      d3.select("#resetZoom").on("click", () => {
+        d3.select("#chart svg")
+            .transition()
+            .duration(750)
+            .call(zoom.transform, d3.zoomIdentity);
+      });
+
+      let currentYear = 1990;
+      let activeRegions = ["WPR"];
+      let selectedSegment = null;
+
+      const renderChart = (filteredData) => {
+        const root = partition(filteredData);
+        root.each(d => (d.current = d));
+
+        svg.selectAll("*").remove();
+
+        const path = svg.append("g")
+          .selectAll("path")
+          .data(root.descendants())
+          .join("path")
+          .attr("fill", d => {
+            const region = d.ancestors().find(a => a.depth === 1)?.data.name;
+            return region && regionColors[region] ? regionColors[region].color : "#ccc";
+          })
+          .attr("d", arc)
+          .attr("stroke", "#000")
+          .attr("stroke-width", ".4px")
+          .on("click", function (event, d) {
+            if (selectedSegment === d) {
+              selectedSegment = null;
+              path.attr("opacity", 1);
+            } else {
+              selectedSegment = d;
+              path.attr("opacity", node => (node === d || node.ancestors().includes(d) ? 1 : 0.3));
+            }
+          })
+          .on("mouseover", function (event, d) {
+            const region = d.ancestors().find(a => a.depth === 1)?.data.name || "All Regions";
+            const country = d.data.name || "Unknown Country";
+            const value = d.value || 0;
+            const formatValue = d3.format(",.0f");
+
+            tooltip
+              .style("visibility", "visible")
+              .style("top", `${event.pageY + 10}px`)
+              .style("left", `${event.pageX + 10}px`)
+              .html(`<strong>${country}</strong><br>Region: ${region}<br>Cases: ${formatValue(value)}`);
+          })
+          .on("mousemove", function (event) {
+            tooltip
+              .style("top", `${event.pageY + 10}px`)
+              .style("left", `${event.pageX + 10}px`);
+          })
+          .on("mouseout", function () {
+            tooltip.style("visibility", "hidden");
+          });
+
+        const labels = svg.append("g")
+          .selectAll("text")
+          .data(root.descendants().filter(d => d.depth && (d.x1 - d.x0) > 0.04))
+          .join("text")
+          .attr("transform", d => {
+            const angle = (d.x0 + d.x1) / 2 * 180 / Math.PI;
+            const radiusPos = (d.y0 + d.y1) / 2 * radius;
+            return `rotate(${angle - 90}) translate(${radiusPos},0) rotate(${angle < 180 ? 0 : 180})`;
+          })
+          .attr("dy", "0.35em")
+          .attr("font-size", d => `${Math.min(10, (d.x1 - d.x0) * radius / 6)}px`)
+          .attr("fill", "#000")
+          .text(d => truncateText(d.data.name, (d.x1 - d.x0) * radius));
+      };
+
+      const truncateText = (text, maxWidth) => {
+        const maxChars = Math.floor(maxWidth / 8);
+        return text.length > maxChars ? text.slice(0, maxChars - 2) + "…" : text;
+      };
+
+      const renderLegend = () => {
+        const legend = d3.select("#legend");
+        
+        Object.entries(regionColors).forEach(([abbr, { color, fullName }]) => {
+          const item = legend.append("div").attr("class", "legend-item");
+          item.append("div")
+            .attr("class", "legend-color")
+            .style("background-color", color);
+          item.append("span").text(fullName);
+
+          item.on("click", function () {
+            const isActive = activeRegions.includes(abbr);
+            if (isActive) {
+                activeRegions = activeRegions.filter(region => region !== abbr);
+              item.classed("active", false).style("opacity", "1");
+            } else {
+                activeRegions.push(abbr);
+              item.classed("active", true).style("opacity", "0.7");
+            }
+              renderChart(filterData());
+          });
+        });
+      };
+
+      renderLegend();
+
+      const filterData = () => {
+        return {
+          name: data.name || "World",
+          children: data.children
+            .filter(region => activeRegions.length === 0 || activeRegions.includes(region.region))
+            .flatMap(region => ({
+              name: region.region,
+              children: region.children
+                .filter(y => y.year === currentYear)
+                .flatMap(y => 
+                  y.children.map(country => ({
+                    name: country.country,
+                    value: country.total_incidence,
+                  }))
+                ),
+            })),
+        };
+      };
+
+      const years = Array.from(new Set(data.children.flatMap(r => r.children.map(y => y.year))));
+      const yearSelect = d3.select("#year-select");
+      years.forEach(year => {
+        yearSelect.append("option")
+          .attr("value", year)
+          .text(year)
+          .property("selected", year === currentYear);
+      });
+
+      yearSelect.on("change", function () {
+        currentYear = +this.value;
+        renderChart(filterData());
+      });
+
+      const regionButtons = d3.select("#region-buttons");
+      Object.keys(regionColors).forEach(region => {
+        const buttonColor = regionColors[region].color;
+        regionButtons.append("button")
+          .attr("class", "region-button")
+          .style("background-color", buttonColor)
+          .style("color", "#fff")
+          .text(region)
+          .on("click", function () {
+            const button = d3.select(this);
+            const isActive = button.classed("active");
+            if (isActive) {
+              activeRegions = activeRegions.filter(r => r !== region);
+              button.classed("active", false).style("opacity", "1");
+            } else {
+              activeRegions.push(region);
+              button.classed("active", true).style("opacity", "0.7");
+            }
+            renderChart(filterData());
+          });
+      });
+
+      renderChart(filterData());
+    }).catch(err => console.error("Error loading JSON:", err));
+  </script>
+</body>
+</html>
