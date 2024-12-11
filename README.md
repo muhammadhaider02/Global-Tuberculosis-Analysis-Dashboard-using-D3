@@ -14,8 +14,8 @@ The dashboard includes the following five visualizations:
 5. Sunburst Chart: Breaks down total cases into hierarchical segments.
 
 ### Filters
-> Region Filter: Narrow down the analysis to specific regions.
-> Year Filter: Focus on data for a specific year or range of years.
+- **Region Filter**: Narrow down the analysis to specific regions.
+- **Year Filter**: Focus on data for a specific year or range of years.
 
 ### Interactivity
 1. Tooltips: Hover over visual elements to see detailed information.
@@ -36,18 +36,18 @@ The dashboard includes the following five visualizations:
 5. Use the "+" icon in the top right corner to expand a visualization for a detailed view. Use the "x" icon in the bottom right corner to zoom back out.
 
 Technologies Used
-> HTML, CSS, JavaScript: For creating and styling the dashboard.
-> D3.js: For rendering interactive and dynamic visualizations.
-> Live Server: To host the project locally.
+- HTML, CSS, JavaScript: For creating and styling the dashboard.
+- D3.js: For rendering interactive and dynamic visualizations.
+- Live Server: To host the project locally.
 
 Known Issues
-> Ensure the live server is running to interact with the dashboard.
-> Larger datasets may take longer to load on slower machines.
+- Ensure the live server is running to interact with the dashboard.
+- Larger datasets may take longer to load on slower machines.
 
 Future Enhancements
-> Add support for additional filters (e.g., gender or age group).
-> Include predictive analytics for Tuberculosis trends beyond 2013.
-> Export functionality for filtered data.
+- Add support for additional filters (e.g., gender or age group).
+- Include predictive analytics for Tuberculosis trends beyond 2013.
+- Export functionality for filtered data.
 
 Contact
 If you encounter any issues or have suggestions for improvement, feel free to reach out via email at muhammadhaiderakbar@gmail.com or create an issue in the project repository.
